@@ -1,0 +1,35 @@
+import asyncio
+import websockets
+
+# Dictionary to keep track of users: {username: websocket}
+connected_users = {}
+
+async def notify_all(message):
+    if connected_users:
+        await asyncio.gather(*(user.send(message) for user in connected_users.values()))
+
+async def handler(websocket, path):
+    # First message from the client should be the username
+    username = await websocket.recv()
+    connected_users[username] = websocket
+    await notify_all(f"{username} is now online.")
+
+    try:
+        # Keep the connection open
+        async for message in websocket:
+            # Just echoing messages for now
+            await websocket.send(f"You said: {message}")
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        # When the user disconnects
+        del connected_users[username]
+        await notify_all(f"{username} has gone offline.")
+
+# Start the WebSocket server
+start_server = websockets.serve(handler, "localhost", 6789)
+
+print("Server started on ws://localhost:6789")
+asyncio.get_event_loop().run_until_complete(start_server)
+asyncio.get_event_loop().run_forever()
+
